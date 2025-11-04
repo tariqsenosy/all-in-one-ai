@@ -45,3 +45,4 @@ app.include_router(complaints_router, prefix="/api/v1/complaints", tags=["Compla
 async def root():
     print("Smart City API is running")
     return {"message": "Smart City API is running"}
+ 
