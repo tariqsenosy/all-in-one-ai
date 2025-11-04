@@ -36,18 +36,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.middleware("http")
-async def catch_exceptions_middleware(request: Request, call_next):
-    try:
-        return await call_next(request)
-    except Exception as e:
-        tb = traceback.format_exc()
-        print(tb)
-        return JSONResponse(
-            status_code=500,
-            content={"detail": str(e), "trace": tb},
-        )
-        
+
 # Routers
 app.include_router(complaints_router, prefix="/api/v1/complaints", tags=["Complaints"])
 
