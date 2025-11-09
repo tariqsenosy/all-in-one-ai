@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.complaint_model import Complaint
+from app.ai.complaint_responder import ComplaintResponder
 from app.models.complaint_dto import ComplaintRequest, ComplaintResponse
 from app.ai.complaint_classifier import ComplaintClassifier
 from langgraph.graph import StateGraph, START, END
@@ -37,6 +38,7 @@ class ComplaintService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.classifier = ComplaintClassifier()
+        self.responder = ComplaintResponder()
         self.graph = self._build_graph()
         self.transcriber = whisper.load_model("base")  # load local Whisper model
 
@@ -48,13 +50,15 @@ class ComplaintService:
         state["complaint_type"] = complaint_type
         return state
 
-    # -------------------------
-    # Step 2: generate AI reply
-    # -------------------------
+       # Step 2: توليد رد بشري طبيعي
     async def _reply_node(self, state: ComplaintState) -> ComplaintState:
-        complaint_type = state["complaint_type"]
-        state["reply"] = f"Complaint categorized as '{complaint_type}'. A team will review it soon."
-        state["action_taken"] = "AI Classified"
+        reply_text = self.responder.generate_reply(
+            citizen_name=state["citizen_name"],
+            complaint_text=state["message"],
+            complaint_type=state["complaint_type"]
+        )
+        state["reply"] = reply_text
+        state["action_taken"] = "AI Responded"
         return state
 
     # -------------------------
