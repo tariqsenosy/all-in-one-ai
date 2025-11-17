@@ -9,6 +9,15 @@ import asyncio
 import tempfile
 import os
 import whisper
+import numpy as np
+from PIL import Image
+import tensorflow as tf
+import json
+from fastapi import UploadFile
+from io import BytesIO
+
+
+
 
 
 # =========================
@@ -41,6 +50,15 @@ class ComplaintService:
         self.responder = ComplaintResponder()
         self.graph = self._build_graph()
         self.transcriber = whisper.load_model("base")  # load local Whisper model
+        
+        # ⬅  model.keras
+        model_path = os.path.join("app", "ai", "training", "saved_model", "model.keras")
+        self.image_model = tf.keras.models.load_model(model_path)
+
+        # ⬅  labels.json
+        labels_path = os.path.join("app", "ai", "training", "labels.json")
+        with open(labels_path, "r") as f:
+            self.labels = {v: k for k, v in json.load(f).items()}
 
     # -------------------------
     # Step 1: classify complaint
@@ -154,3 +172,35 @@ class ComplaintService:
             print(f"SEGMENT {i}: [{seg.get('start', 0):.2f} - {seg.get('end', 0):.2f}] {repr(seg.get('text'))}")
 
         return raw_text
+
+    async def handle_image_complaint(self, citizen_name: str, message: str | None, image: UploadFile):
+        
+        # --- Step 1: Read image ---
+        image_bytes = await image.read()
+        img = Image.open(BytesIO(image_bytes)).convert("RGB")
+        img = img.resize((224, 224))
+        img_array = np.array(img) / 255.0
+        img_array = np.expand_dims(img_array, axis=0)
+
+        # --- Step 2: Model prediction ---
+        prediction = self.image_model.predict(img_array)
+        predicted_class_index = np.argmax(prediction)
+        predicted_label = self.labels[predicted_class_index]
+
+        print("Predicted image class:", predicted_label)
+
+        # --- Step 3: Merge with message ---
+        if message and message.strip() != "":
+            full_message = f"{message}\n(Attached image shows: {predicted_label})"
+        else:
+            full_message = f"Image indicates: {predicted_label}"
+
+        # --- Step 4: Reuse complaint pipeline ---
+        complaint_request = ComplaintRequest(
+            citizen_name=citizen_name,
+            message=full_message
+        )
+
+        return await self.handle_complaint(complaint_request)
+
+

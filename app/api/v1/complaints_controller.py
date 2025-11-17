@@ -22,3 +22,17 @@ async def create_voice_complaint(
 ):
     service = ComplaintService(db)
     return await service.handle_voice_complaint(citizen_name, audio_file)
+
+@router.post("/image", response_model=ComplaintResponse)
+async def create_image_complaint(
+    citizen_name: str = Form(...),
+    message: str = Form(None),
+    image_file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db)
+):
+    service = ComplaintService(db)
+    return await service.handle_image_complaint(
+        citizen_name=citizen_name,
+        message=message,
+        image=image_file
+    )
